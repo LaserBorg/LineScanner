@@ -5,6 +5,13 @@ __pycache__/
 
 
 .idea/
+*Protokolle/
+code-examples/
+Thumbs.db
+/3D/difference/Thumbs.db
+/code/_alt/
+/images/tests/
+
 
 # C extensions
 *.so
@@ -130,3 +137,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+
