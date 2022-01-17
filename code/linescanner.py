@@ -18,7 +18,7 @@ def main(s):
     camera = cv2.VideoCapture(s.video_path)
 
     # init framebuffer for difference-map
-    old_frame = np.zeros((960, 540, 3), np.uint8)  # TODO: size variable
+    old_frame = np.zeros((s.dims[1], s.dims[0], 3), np.uint8)
 
     # load image texture
     if s.texture_path is not None:
@@ -65,7 +65,6 @@ def main(s):
         # resize image
         frame = cv2.resize(frame, s.dims, interpolation=cv2.INTER_LINEAR)
 
-
         img = cv2.subtract(frame, old_frame)
         B, G, R = cv2.split(img.astype(np.float64))
 
@@ -74,10 +73,10 @@ def main(s):
 
         img = cv2.merge([average, average, average])
 
-
         # search frame for laserline, returns ndarray and preview image.
         # format: ndarray[height, 8]->[[x_2d,y_2d,x,y,z,r,g,b]..] with y_2d as index
-        pointlist, preview_img = find_laser(img, channel=2, threshold=180, texture=texture)
+        pointlist, preview_img = find_laser(img, channel=2, threshold=100, texture=frame, desaturate_texture=True)  # texture=texture
+
         preview_img = cv2.resize(preview_img, s.preview_dims, interpolation=cv2.INTER_NEAREST)
         cv2.imshow('preview', preview_img)
 
@@ -119,18 +118,26 @@ def main(s):
 
     vis.destroy_window()
 
+    # calculate point normals
+    # todo: they are all facing the camera ?!
     pointcloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
     # pointcloud = estimate_normals(pointcloud)
+
+    # EXPORT PLY MODEL
+    # todo: exports do not overwrite files -> need to delete if existing
     export_pointcloud(pointcloud, s.export_path, type="ply")
-    export_pointcloud(pointcloud, s.export_path, type="csv")
+
+    # # EXPORT CSV
+    # export_pointcloud(pointcloud, s.export_path, type="csv")
+
+    # EXPORT PCD POINTCLOUD
     export_pointcloud(pointcloud, s.export_path, type="pcd", write_ascii=True)
     print("export successful.")
 
+    # VISUALIZE
     o3d.visualization.draw_geometries([pointcloud], width=800, height=800, left=1000,
                                       mesh_show_back_face=False, zoom=0.2, up=[0.0, 1.0, 0.0],
                                       front=[0.0, 0.0, 0.01], lookat=[0.0, 0.0, -1.0])
-
-
 
 
 class Settings:
@@ -161,7 +168,7 @@ class Settings:
         self.vertical_stretch = (input_width / self.width) / (input_height / self.height)
 
         self.laser_angle = -28.  # initial laser angle
-        self.angle_step = 0.5
+        self.angle_step = 360/2048  # 360/720
         self.camera_laser_distance = 10  # cm Camera|Laser
 
         self.fov_degree = 48  # Camera horizontal Field of View
@@ -169,9 +176,10 @@ class Settings:
         self.lens_length = self.dims[0] / (2 * math.tan(self.fov_rad / 2))
 
 
-settings = Settings(video_path="../images/laser1a.mp4", export_path="../export/laser1a",
-                    # texture_path="../images/_alt/laser1_rgb.jpg",
-                    shrink_x=1, shrink_y=4, shrink_preview=3, verbose=False)
+settings = Settings(video_path="../images/laser1a_2048.mp4", export_path="../export/laser1a_2048",
+                    texture_path="../images/laser1_RGB_vertikal.jpg",
+                    shrink_x=1, shrink_y=3, shrink_preview=3, verbose=False)
+
 
 if __name__ == '__main__':
     main(settings)
