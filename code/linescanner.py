@@ -135,9 +135,7 @@ def main(s):
     print("export successful.")
 
     # VISUALIZE
-    o3d.visualization.draw_geometries([pointcloud], width=800, height=800, left=1000,
-                                      mesh_show_back_face=False, zoom=0.2, up=[0.0, 1.0, 0.0],
-                                      front=[0.0, 0.0, 0.01], lookat=[0.0, 0.0, -1.0])
+    o3d.visualization.draw_geometries([pointcloud], width=800, height=800)
 
 
 class Settings:
@@ -176,7 +174,7 @@ class Settings:
         self.lens_length = self.dims[0] / (2 * math.tan(self.fov_rad / 2))
 
 
-settings = Settings(video_path="../images/laser1a_2048.mp4", export_path="../export/laser1a_2048",
+settings = Settings(video_path="../images/laser1a_2048.mp4", export_path="../3D/export/laser1a_2048",
                     texture_path="../images/laser1_RGB_vertikal.jpg",
                     shrink_x=1, shrink_y=3, shrink_preview=3, verbose=False)
 
