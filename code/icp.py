@@ -8,8 +8,8 @@ from libs.pointcloud import export_pointcloud
 if __name__ == "__main__":
     o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Debug)
 
-    source = o3d.io.read_point_cloud("../export/laser1a.pcd")
-    target = o3d.io.read_point_cloud("../export/laser1b.pcd")
+    source = o3d.io.read_point_cloud("export/laser1a_720.pcd")
+    target = o3d.io.read_point_cloud("export/laser1b_720.pcd")
 
     # # downsample
     # source = source.voxel_down_sample(voxel_size=0.01)
@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     source +=target
 
-    export_pointcloud(source, "../export/icp", type="ply")
+    export_pointcloud(source, "export/icp", type="ply")
 
     # o3d.visualization.RenderOption.light_on = False  # TODO not working
     o3d.visualization.draw_geometries([source], width=800, height=800, left=1000,

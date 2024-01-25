@@ -5,10 +5,7 @@
 ▓▓      ▓▓ ▓▓  ▓▓ ▓▓ ▓▓           ▓▓ ▓▓      ▓▓   ▓▓ ▓▓  ▓▓ ▓▓ ▓▓  ▓▓ ▓▓ ▓▓      ▓▓   ▓▓
 ███████ ██ ██   ████ ███████ ███████  ██████ ██   ██ ██   ████ ██   ████ ███████ ██   ██
 
-Kamera A, alpha - Abstand c - Laserdiode B, beta | Laserpunkt: C, gamma - Laserlinie a
-kartesische Position von C: x, z
 """
-
 import numpy as np
 import cv2
 import math
@@ -16,11 +13,11 @@ import open3d as o3d
 
 from libs.laser import find_laser
 from libs.calc import triangulate
-from libs.pointcloud import estimate_normals, export_pointcloud
+from libs.pointcloud import export_pointcloud  # , estimate_normals
 # from libs.image import rotate_bound
 
 
-def main(s):
+def main(s):  # s: settings
     # init video
     camera = cv2.VideoCapture(s.video_path)
 
@@ -147,7 +144,7 @@ def main(s):
 
 class Settings:
     """containing specific values"""
-    def __init__(self, video_path="", verbose=True, export_path=None, texture_path=None,
+    def __init__(self, video_path="", angle_step=0.5, verbose=True, export_path=None, texture_path=None,
                  shrink_x=1, shrink_y=8, shrink_preview=3):
         self.verbose = verbose
         self.video_path = video_path
@@ -173,7 +170,7 @@ class Settings:
         self.vertical_stretch = (input_width / self.width) / (input_height / self.height)
 
         self.laser_angle = -28.  # initial laser angle
-        self.angle_step = 360/2048  # 360/720
+        self.angle_step = angle_step  # 360° / frames per full revolution (2048 steps = 0.17578125°)
         self.camera_laser_distance = 10  # cm Camera|Laser
 
         self.fov_degree = 48  # Camera horizontal Field of View
@@ -181,8 +178,10 @@ class Settings:
         self.lens_length = self.dims[0] / (2 * math.tan(self.fov_rad / 2))
 
 
-settings = Settings(video_path="../images/laser1a_2048.mp4", export_path="../3D/export/laser1a_2048",
-                    texture_path="../images/laser1_RGB_vertikal.jpg",
+settings = Settings(video_path="images/laser1a_720.mp4",
+                    angle_step=360 / 720,
+                    export_path="3D/export/laser1a_720",
+                    texture_path="images/laser1_RGB_vertikal.jpg",
                     shrink_x=1, shrink_y=3, shrink_preview=3, verbose=False)
 
 
