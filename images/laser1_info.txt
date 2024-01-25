@@ -1,0 +1,5 @@
+direction: right
+angle_start: -30
+angle_delta: 0.5
+interocular: 10cm
+fov_horizontal: 48°

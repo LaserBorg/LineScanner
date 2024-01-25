@@ -1,11 +1,11 @@
-# LineScanner
+# LineScanner | work-in-progress
 
 ### working principle
 A stepper motor sweeps a linelaser across the view of a camera. The script tries to detect a laser line 
 in each row of the camera frame, repeating for each frame during the laser's motion. 
 It uses frame subtraction to detect subtle changes in brightness and can therefore be used even in bright daylight.
 
-![source image](images/example_input.jpg)
+![source image](doc/example_input.jpg)
 
 It then triangulates the 3D position of each point of the laser line using:
 * distance between camera <-> laser
@@ -15,10 +15,7 @@ It then triangulates the 3D position of each point of the laser line using:
 Each point is colored (Vertex Color) either by the point's grayscale-value ( = "Laser-Illuminated") 
 or by providing a clean image for texturing (e.g. first frame of daylight shooting).
 
-![Linescanner](images/example_result.jpg)
-
-
-
+![Linescanner](doc/example_result.jpg)
 -----------
 
 

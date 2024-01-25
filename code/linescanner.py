@@ -180,7 +180,7 @@ class Settings:
 
 settings = Settings(video_path="images/laser1a_720.mp4",
                     angle_step=360 / 720,
-                    export_path="3D/export/laser1a_720",
+                    export_path="export/laser1a_720",
                     texture_path="images/laser1_RGB_vertikal.jpg",
                     shrink_x=1, shrink_y=3, shrink_preview=3, verbose=False)
 
