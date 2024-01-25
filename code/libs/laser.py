@@ -5,6 +5,60 @@ from matplotlib import pyplot as plt
 
 
 def find_laser(img, channel=2, threshold=180, preview_on_black=False, texture=None, desaturate_texture=False):
+
+    def find_line_maxima(row, threshold=180, distance=5, multi=False):
+        if multi is False:
+            max_indices = np.nonzero(row > threshold)
+            if len(max_indices[0]) == 0:
+                return 0
+            else:
+                # initialize array for pixel intensities
+                intensities = np.zeros(len(max_indices[0]))
+                # once for every element in max_indices
+                for n in range(len(max_indices[0])):
+                    intensity = row[max_indices[0][n]]
+                    intensities[n] = intensity
+                # WEIGHTED AVERAGE
+                weights = intensities/255
+                max_index = np.sum(max_indices * weights) / np.sum(weights)
+                return max_index
+
+        # find multiple Maxima
+        else:
+            row = smooth_line(row, blur=3)
+            maxima, _ = find_peaks(row, height=threshold, distance=distance)
+            if len(maxima) == 0:
+                return 0
+            else:
+                return maxima
+    
+    def smooth_line(array, blur=5, window='hamming'):
+            """
+            https://scipy-cookbook.readthedocs.io/items/SignalSmooth.html
+            'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
+            """
+            s = np.r_[array[blur - 1:0:-1], array, array[-2:-blur - 1:-1]]
+            if window == 'flat':
+                w = np.ones(blur, 'd')
+            else:
+                w = eval('np.' + window + '(blur)')
+            array = np.convolve(w / w.sum(), s, mode='valid')
+            array = array[blur - 1:]
+            return array
+
+    def draw_point(image, pos, color=(255, 0, 0)):
+        cv2.line(image, (int(pos[0]), int(pos[1])), (int(pos[0]+2), int(pos[1])), color, 1)
+        return image
+
+    def plot_row(row, points):
+        length = len(row)
+        x = np.linspace(0, length, length, endpoint=False)
+        plt.plot(x, row, "bo", ms=3)
+        plt.plot(x, row, "b")
+        plt.plot(x[points], row[points], "rD", ms=4, label="selected")
+        plt.legend()
+        plt.show()
+
     # extract single color channel for maxima search
     img_channel = img[:, :, channel]
 
@@ -53,60 +107,3 @@ def find_laser(img, channel=2, threshold=180, preview_on_black=False, texture=No
         # draw current point into preview image
         preview_img = draw_point(preview_img, (x, y))
     return pointlist, preview_img
-
-
-def find_line_maxima(row, threshold=180, distance=5, multi=False):
-    if multi is False:
-        max_indices = np.nonzero(row > threshold)
-        if len(max_indices[0]) == 0:
-            return 0
-        else:
-            # initialize array for pixel intensities
-            intensities = np.zeros(len(max_indices[0]))
-            # once for every element in max_indices
-            for n in range(len(max_indices[0])):
-                intensity = row[max_indices[0][n]]
-                intensities[n] = intensity
-            # WEIGHTED AVERAGE
-            weights = intensities/255
-            max_index = np.sum(max_indices * weights) / np.sum(weights)
-            return max_index
-
-    # find multiple Maxima
-    else:
-        row = smooth_line(row, blur=3)
-        maxima, _ = find_peaks(row, height=threshold, distance=distance)
-        if len(maxima) == 0:
-            return 0
-        else:
-            return maxima
-
-
-def smooth_line(array, blur=5, window='hamming'):
-    """
-    https://scipy-cookbook.readthedocs.io/items/SignalSmooth.html
-    'flat', 'hanning', 'hamming', 'bartlett', 'blackman'
-    """
-    s = np.r_[array[blur - 1:0:-1], array, array[-2:-blur - 1:-1]]
-    if window == 'flat':
-        w = np.ones(blur, 'd')
-    else:
-        w = eval('np.' + window + '(blur)')
-    array = np.convolve(w / w.sum(), s, mode='valid')
-    array = array[blur - 1:]
-    return array
-
-
-def draw_point(image, pos, color=(255, 0, 0)):
-    cv2.line(image, (int(pos[0]), int(pos[1])), (int(pos[0]+2), int(pos[1])), color, 1)
-    return image
-
-
-def plot_row(row, points):
-    length = len(row)
-    x = np.linspace(0, length, length, endpoint=False)
-    plt.plot(x, row, "bo", ms=3)
-    plt.plot(x, row, "b")
-    plt.plot(x[points], row[points], "rD", ms=4, label="selected")
-    plt.legend()
-    plt.show()

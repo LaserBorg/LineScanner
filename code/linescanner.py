@@ -10,181 +10,194 @@ import numpy as np
 import cv2
 import math
 import open3d as o3d
+import json
 
 from libs.laser import find_laser
-from libs.calc import triangulate
-from libs.pointcloud import export_pointcloud  # , estimate_normals
+from libs.pointcloud import export_pointcloud
 # from libs.image import rotate_bound
 
 
-def main(s):  # s: settings
-    # init video
-    camera = cv2.VideoCapture(s.video_path)
+class LineScanner:
+    def __init__(self, config_path):
+        # Load settings from JSON file
+        with open(config_path, 'r') as f:
+            configs             = json.load(f)
+        
+        self.video_path         = configs['video_path']
+        self.texture_path       = configs['texture_path']
+        self.export_path        = configs['export_path']
+        self.export_type        = configs['export_type']
 
-    # init framebuffer for difference-map
-    old_frame = np.zeros((s.dims[1], s.dims[0], 3), np.uint8)
-
-    # load image texture
-    if s.texture_path is not None:
-        texture = cv2.imread(s.texture_path, 1)
-        texture = cv2.resize(texture, s.dims, interpolation=cv2.INTER_LINEAR)
-    else:
-        texture = None
-
-    # init Camera and Laser position
-    camera_pos = np.array([0, 0, 0])
-    laser_pos = np.array([s.camera_laser_distance, 0, 0])
-    # project imageplane into 3d space
-    topleft_corner = np.array([-s.dims[0] / 2, s.dims[1] / 2, s.lens_length])
-
-    # init live 3D-Viewer
-    vis = o3d.visualization.Visualizer()
-    vis.create_window(width=800, height=800, left=1000)
-    pointcloud = o3d.geometry.PointCloud()
-    pointcloud_frame = o3d.geometry.PointCloud()
-
-    # TODO: initial scale is crucial; needs scale-to-fit and  wider clipping plane
-    points = np.array([[-50, -50, -50], [50, 50, 50]])
-    colors = np.array([[1, 0, 0], [1, 0, 0]])
-
-    pointcloud.points = o3d.utility.Vector3dVector(points)
-    pointcloud.colors = o3d.utility.Vector3dVector(colors)
-    vis.add_geometry(pointcloud)
-
-    # VIDEO PROCESSING LOOP
-    frame_number = 0
-    while True:
-        # calculate current normal-vector of laserplane
-        laser_angle_rad = math.radians(s.laser_angle)  # beta
-        plane_normal = np.array([-1, 0, math.tan(laser_angle_rad)])
-
-        if s.verbose:
-            print(f"frame {frame_number} | laser-angle {s.laser_angle}°")
-
-        # read frame from video and resize
-        (grabbed, frame) = camera.read()
-        if grabbed is False:  # check if file is finished
-            break
-
-        # resize image
-        frame = cv2.resize(frame, s.dims, interpolation=cv2.INTER_LINEAR)
-
-        img = cv2.subtract(frame, old_frame)
-        B, G, R = cv2.split(img.astype(np.float64))
-
-        average = (R + B + G) / 2
-        average = average.clip(max=255).astype(np.uint8)
-
-        img = cv2.merge([average, average, average])
-
-        # search frame for laserline, returns ndarray and preview image.
-        # format: ndarray[height, 8]->[[x_2d,y_2d,x,y,z,r,g,b]..] with y_2d as index
-        pointlist, preview_img = find_laser(img, channel=2, threshold=100, texture=frame, desaturate_texture=True)  # texture=texture
-
-        preview_img = cv2.resize(preview_img, s.preview_dims, interpolation=cv2.INTER_NEAREST)
-        cv2.imshow('preview', preview_img)
-
-        # run through each row to triangulate a 3D point
-        for y, values in enumerate(pointlist):
-            x = values[0]
-            if x < 0.5:  # skip lines without matches
-                continue
-
-            point3d = triangulate((x, y), topleft_corner, camera_pos, laser_pos, plane_normal)
-
-            # add 3D coordinates to pointlist
-            pointlist[y][2] = point3d[0]
-            pointlist[y][3] = point3d[1] / s.vertical_stretch
-            pointlist[y][4] = point3d[2] * -1
-
-        # remove empty rows
-        pointlist = pointlist[~np.all(pointlist == 0, axis=1)]
-
-        # # append 3D points of this line to the global pointcloud
-        # o3d.utility.Vector3dVector.extend(pointcloud.points, pointlist)
-        pointcloud_frame.points = o3d.utility.Vector3dVector(pointlist[:, 2:5])
-        pointcloud_frame.colors = o3d.utility.Vector3dVector(pointlist[:, 5:8] / 255)
-        pointcloud += pointcloud_frame
-
-        # update 3D-view each line
-        vis.update_geometry(pointcloud)
-        vis.poll_events()
-        vis.update_renderer()
-
-        # iterate frame_number and laser_angle
-        frame_number += 1
-        s.laser_angle += s.angle_step
-
-        old_frame = frame
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    vis.destroy_window()
-
-    # calculate point normals
-    # todo: they are all facing the camera ?!
-    pointcloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
-    # pointcloud = estimate_normals(pointcloud)
-
-    # EXPORT PLY MODEL
-    # todo: exports do not overwrite files -> need to delete if existing
-    export_pointcloud(pointcloud, s.export_path, type="ply")
-
-    # # EXPORT CSV
-    # export_pointcloud(pointcloud, s.export_path, type="csv")
-
-    # EXPORT PCD POINTCLOUD
-    export_pointcloud(pointcloud, s.export_path, type="pcd", write_ascii=True)
-    print("export successful.")
-
-    # VISUALIZE
-    o3d.visualization.draw_geometries([pointcloud], width=800, height=800)
-
-
-class Settings:
-    """containing specific values"""
-    def __init__(self, video_path="", angle_step=0.5, verbose=True, export_path=None, texture_path=None,
-                 shrink_x=1, shrink_y=8, shrink_preview=3):
-        self.verbose = verbose
-        self.video_path = video_path
-        self.export_path = export_path
-
-        self.texture_path = texture_path
-
+        self.cam_pos            = np.array(configs['cam_pos']) 
+        self.laser_pos          = np.array(configs['laser_pos'])
+        self.hfov               = configs['horizontal_fov']
+        self.laser_angle        = configs['laser_angle_start']
+        self.angle_step         = configs['angle_step']
+        self.laser_thres        = configs['laser_thres']
+        
+        self.shrink_x           = configs['shrink_x']
+        self.shrink_y           = configs['shrink_y']
+        self.shrink_preview     = configs['shrink_preview']
+        self.window_size        = configs['window_size']
+        self.verbose            = configs['verbose']
+        
         # load first frame of video and get width & height
-        self.cap = cv2.VideoCapture(self.video_path)
-        ret, frame = self.cap.read()
-        input_height, input_width = frame.shape[:2]
+        self.cap                = cv2.VideoCapture(self.video_path)
+        ret, frame              = self.cap.read()
+        source_h, source_w      = frame.shape[:2]
 
-        self.input_dims = (input_width, input_height)
-        self.preview_width = int(input_width / shrink_preview)
-        self.preview_height = int(input_height / shrink_preview)
-        self.width = int(input_width / shrink_x)
-        self.height = int(input_height / shrink_y)
-
-        self.preview_dims = (self.preview_width, self.preview_height)
-        self.dims = (self.width, self.height)
+        self.input_dims         = (source_w, source_h)
+        self.preview_width      = int(source_w / self.shrink_preview)
+        self.preview_height     = int(source_h / self.shrink_preview)
+        self.width              = int(source_w / self.shrink_x)
+        self.height             = int(source_h / self.shrink_y)
+        self.dims               = (self.width, self.height)
+        self.preview_dims       = (self.preview_width, self.preview_height)
+        self.zero               = configs['zero']
 
         # reduce vertical resolution
-        self.vertical_stretch = (input_width / self.width) / (input_height / self.height)
+        self.vertical_stretch   = (source_w / self.width) / (source_h / self.height)
 
-        self.laser_angle = -28.  # initial laser angle
-        self.angle_step = angle_step  # 360° / frames per full revolution (2048 steps = 0.17578125°)
-        self.camera_laser_distance = 10  # cm Camera|Laser
+        self.fov_rad            = math.radians(self.hfov)
+        self.lens_length        = self.dims[0] / (2 * math.tan(self.fov_rad / 2))
 
-        self.fov_degree = 48  # Camera horizontal Field of View
-        self.fov_rad = math.radians(self.fov_degree)
-        self.lens_length = self.dims[0] / (2 * math.tan(self.fov_rad / 2))
+        # project imageplane into 3d space
+        self.topleft_corner = np.array([-self.dims[0] / 2, self.dims[1] / 2, self.lens_length])
+
+        # init live 3D-Viewer
+        self.vis = o3d.visualization.Visualizer()
+        self.vis.create_window(width=self.window_size[0], height=self.window_size[1], left=1000)
+        self.pointcloud = o3d.geometry.PointCloud()
+        self.pointcloud_frame = o3d.geometry.PointCloud()
+
+        # TODO: initial scale is crucial; needs scale-to-fit and  wider clipping plane
+        self.pointcloud.points = o3d.utility.Vector3dVector(np.array([[-50, -50, -50], [50, 50, 50]]))
+        self.pointcloud.colors = o3d.utility.Vector3dVector(np.array([[1, 0, 0], [1, 0, 0]]))
+        self.vis.add_geometry(self.pointcloud)
 
 
-settings = Settings(video_path="images/laser1a_720.mp4",
-                    angle_step=360 / 720,
-                    export_path="export/laser1a_720",
-                    texture_path="images/laser1_RGB_vertikal.jpg",
-                    shrink_x=1, shrink_y=3, shrink_preview=3, verbose=False)
+    def triangulate(self, pixel, plane_normal):
+        # Pixel vector relative to image topleft_corner point
+        rayDirection = np.array([pixel[0] + self.topleft_corner[0], self.topleft_corner[1] - pixel[1], self.topleft_corner[2]])
+
+        dotProduct = plane_normal.dot(rayDirection)
+
+        # check if parallel or in-plane
+        if abs(dotProduct) < self.zero:
+            print("[WARNING] no intersection at line", pixel[1])
+            return np.array([0, 0, 0])
+        else:
+            w = self.cam_pos - self.laser_pos
+            si = -plane_normal.dot(w) / dotProduct
+            intersection = w + si * rayDirection + self.laser_pos
+
+            if intersection[2] > 0:
+                return intersection
+            # print("[WARNING] intersection behind camera")
+            return np.array([0, 0, 0])
 
 
+    # def sort_numpy_by_column(array, column=0):
+    #     return array[array[:, column].argsort()]
+
+
+    def scan(self):
+        # init framebuffer for difference-map
+        old_frame = np.zeros((self.dims[1], self.dims[0], 3), np.uint8)
+
+        # load image texture
+        if self.texture_path is not None:
+            texture = cv2.imread(self.texture_path, 1)
+            texture = cv2.resize(texture, self.dims, interpolation=cv2.INTER_LINEAR)
+        else:
+            texture = None
+
+        # VIDEO PROCESSING LOOP
+        frame_number = 0
+        while True:
+            # calculate current normal-vector of laserplane
+            laser_angle_rad = math.radians(self.laser_angle)  # beta
+            plane_normal = np.array([-1, 0, math.tan(laser_angle_rad)])
+
+            if self.verbose:
+                print(f"frame {frame_number} | laser-angle {self.laser_angle}°")
+
+            # read frame from video and resize
+            (grabbed, frame) = self.cap.read()
+            if grabbed is False:  # check if file is finished
+                break
+
+            # resize image
+            frame = cv2.resize(frame, self.dims, interpolation=cv2.INTER_LINEAR)
+
+            img = cv2.subtract(frame, old_frame)
+            B, G, R = cv2.split(img.astype(np.float64))
+
+            average = (R + B + G) / 2
+            average = average.clip(max=255).astype(np.uint8)
+
+            img = cv2.merge([average, average, average])
+
+            # search frame for laserline, returns ndarray and preview image.
+            # format: ndarray[height, 8]->[[x_2d,y_2d,x,y,z,r,g,b]..] with y_2d as index
+            pointlist, preview_img = find_laser(img, channel=2, threshold=self.laser_thres, texture=frame, desaturate_texture=True)  # texture=texture
+
+            preview_img = cv2.resize(preview_img, self.preview_dims, interpolation=cv2.INTER_NEAREST)
+            cv2.imshow('preview', preview_img)
+
+            # run through each row to triangulate a 3D point
+            for y, values in enumerate(pointlist):
+                x = values[0]
+                if x < 0.5:  # skip lines without matches
+                    continue
+
+                point3d = self.triangulate((x, y), plane_normal)
+
+                # add 3D coordinates to pointlist
+                pointlist[y][2] = point3d[0]
+                pointlist[y][3] = point3d[1] / self.vertical_stretch
+                pointlist[y][4] = point3d[2] * -1
+
+            # remove empty rows
+            pointlist = pointlist[~np.all(pointlist == 0, axis=1)]
+
+            # # append 3D points of this line to the global pointcloud
+            # o3d.utility.Vector3dVector.extend(pointcloud.points, pointlist)
+            self.pointcloud_frame.points = o3d.utility.Vector3dVector(pointlist[:, 2:5])
+            self.pointcloud_frame.colors = o3d.utility.Vector3dVector(pointlist[:, 5:8] / 255)
+            self.pointcloud += self.pointcloud_frame
+
+            # update 3D-view each line
+            self.vis.update_geometry(self.pointcloud)
+            self.vis.poll_events()
+            self.vis.update_renderer()
+
+            # iterate frame_number and laser_angle
+            frame_number += 1
+            self.laser_angle += self.angle_step
+
+            old_frame = frame
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+        self.vis.destroy_window()
+
+        # calculate point normals
+        # TODO: they are all facing the camera ?!
+        self.pointcloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+        # pointcloud = estimate_normals(pointcloud)
+
+        # EXPORT PLY, CSV OR PCD MODEL
+        # TODO: exports do not overwrite files -> need to delete if existing
+        export_pointcloud(self.pointcloud, self.export_path, type=self.export_type, write_ascii=True)  # ply, csv, pcd
+        print("export successful.")
+
+        # VISUALIZE
+        o3d.visualization.draw_geometries([self.pointcloud], width=self.window_size[0], height=self.window_size[1])
+
+ 
 if __name__ == '__main__':
-    main(settings)
+    linescanner = LineScanner('config.json')
+    linescanner.scan()
     cv2.destroyAllWindows()
