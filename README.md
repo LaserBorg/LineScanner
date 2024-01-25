@@ -21,12 +21,10 @@ or by providing a clean image for texturing (e.g. first frame of daylight shooti
 
 -----------
 
-Kamera A, alpha - Abstand c - Laderdiode B, beta | Laserpunkt: C, gamma - Laserlinie a
-kartesische Position von C: x, z
 
 
 LINKS:
-Vector Intersection based on http://geomalgorithms.com/a05-_intersect-1.html
+Vector Intersection based on [geomalgorithms.com](https://web.archive.org/web/20210428000731/http://geomalgorithms.com/a05-_intersect-1.html)
     https://stackoverflow.com/questions/5666222/3d-line-plane-intersection
 
 indices of max-values in numpy array
