@@ -5,10 +5,12 @@ import matplotlib.pyplot as plt
 
 
 def estimate_normals(pcd, radius=0.1, max_nn=30):
-    pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=radius, max_nn=max_nn))
+    search_param = o3d.geometry.KDTreeSearchParamHybrid(radius=radius, max_nn=max_nn)
+    pcd.estimate_normals(search_param=search_param)
     return pcd
 
 
+# TODO: exports do not overwrite files -> need to delete if existing
 def export_pointcloud(pcd, savepath, type="pcd", write_ascii=True, compressed=True):
     if type == "pcd" or type == "ply":
         if write_ascii:

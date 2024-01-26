@@ -1,25 +1,27 @@
 {
-    "video_path": "images/laser1a_720.mp4",
+    "video_path": "images/laser1a_2048.mp4",
     "texture_path": "images/laser1_RGB_vertikal.jpg",
-    "export_path": "export/laser1a_720",
+    "desaturate_texture": false,
+
+    "export_path": "export/laser1a_2048",
     "export_type" : "pcd",
     
     "cam_pos": [0, 0, 0],
     "laser_pos" : [10, 0, 0],
     "horizontal_fov" : 48,
-    "laser_angle_start" : -28.0,
-    "angle_step": 0.5,
+
+    "sweep_direction" : "right",
+    "sweep_startangle" : -28.0,
+    "sweep_step": 0.17578,
 
     "laser_thres": 100,
-
-    "desaturate_texture": false,
 
     "shrink_x": 1,
     "shrink_y": 3,
     "shrink_preview": 3,
     "window_size" : [800, 800],
     "verbose": false,
-    "zero" : 1e-6,
+    "zero_value" : 1e-6,
 
     "KDTree_radius" : 0.1,
     "KDTree_max_nn" : 30

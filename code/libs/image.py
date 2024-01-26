@@ -1,10 +1,17 @@
 """
-forked from jrosebr1:imutils (MIT license)
+rotate_bound forked from jrosebr1:imutils (MIT license)
 https://github.com/PyImageSearch/imutils/blob/master/imutils/convenience.py
 """
 
 import numpy as np
 import cv2
+
+
+def subtract_images(current_frame, previous_frame, return_RGB=True):
+    img = cv2.subtract(current_frame, previous_frame).astype(np.float64)
+    average = np.mean(img, axis=2).clip(max=255).astype(np.uint8)
+
+    return cv2.merge([average, average, average]) if return_RGB else average
 
 
 def rotate_bound(image, angle):

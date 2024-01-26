@@ -13,8 +13,8 @@ import open3d as o3d
 import json
 
 from libs.laser import find_laser
-from libs.pointcloud import export_pointcloud
-# from libs.image import rotate_bound
+from libs.pointcloud import estimate_normals, export_pointcloud
+from libs.image import subtract_images  # , rotate_bound
 
 
 class LineScanner:
@@ -29,8 +29,9 @@ class LineScanner:
         self.cam_pos            = np.array(configs['cam_pos']) 
         self.laser_pos          = np.array(configs['laser_pos'])
         self.hfov               = configs['horizontal_fov']
-        self.laser_angle        = configs['laser_angle_start']
-        self.angle_step         = configs['angle_step']
+        self.sweep_direction    = configs['sweep_direction']  # TODO: unused
+        self.sweep_angle        = configs['sweep_startangle']
+        self.sweep_step         = configs['sweep_step']
         self.laser_thres        = configs['laser_thres']
         
         self.desaturate_texture = configs['desaturate_texture']
@@ -40,6 +41,7 @@ class LineScanner:
         self.shrink_preview     = configs['shrink_preview']
         self.window_size        = configs['window_size']
         self.verbose            = configs['verbose']
+        self.frame_index        = 0
         
         # load first frame of video and get width & height
         self.cap                = cv2.VideoCapture(self.video_path)
@@ -53,7 +55,7 @@ class LineScanner:
         self.height             = int(source_h / self.shrink_y)
         self.dims               = (self.width, self.height)
         self.preview_dims       = (self.preview_width, self.preview_height)
-        self.zero               = configs['zero']
+        self.zero_value         = configs['zero_value']
         self.KDTree_radius      = configs['KDTree_radius']
         self.KDTree_max_nn      = configs['KDTree_max_nn']
 
@@ -81,7 +83,6 @@ class LineScanner:
         self.pointcloud.colors = o3d.utility.Vector3dVector(np.array([[1, 0, 0], [1, 0, 0]]))
         self.vis.add_geometry(self.pointcloud)
 
-
     def triangulate(self, pixel, plane_normal):
         # Pixel vector relative to image topleft_corner point
         rayDirection = np.array([pixel[0] + self.topleft_corner[0], self.topleft_corner[1] - pixel[1], self.topleft_corner[2]])
@@ -89,7 +90,7 @@ class LineScanner:
         dotProduct = plane_normal.dot(rayDirection)
 
         # check if parallel or in-plane
-        if abs(dotProduct) < self.zero:
+        if abs(dotProduct) < self.zero_value:
             print("[WARNING] no intersection at line", pixel[1])
             return np.array([0, 0, 0])
         else:
@@ -102,105 +103,110 @@ class LineScanner:
             # print("[WARNING] intersection behind camera")
             return np.array([0, 0, 0])
 
-
     # def sort_numpy_by_column(array, column=0):
     #     return array[array[:, column].argsort()]
 
-
     def scan(self):
-        # init framebuffer for difference-map
-        old_frame = np.zeros((self.dims[1], self.dims[0], 3), np.uint8)
+        previous_frame = self.init_framebuffer()
 
-        # VIDEO PROCESSING LOOP
-        frame_number = 0
+        # MAIN LOOP
         while True:
             # calculate current normal-vector of laserplane
-            laser_angle_rad = math.radians(self.laser_angle)  # beta
-            plane_normal = np.array([-1, 0, math.tan(laser_angle_rad)])
-
+            plane_normal = self.calculate_plane_normal()
             if self.verbose:
-                print(f"frame {frame_number} | laser-angle {self.laser_angle}°")
-
-            # read frame from video and resize
-            (grabbed, frame) = self.cap.read()
-            if grabbed is False:  # check if file is finished
+                print(f"frame {self.frame_index} | laser-angle {self.sweep_angle}°")
+            
+            difference_map, frame = self.read_and_resize_frame(previous_frame)
+            if difference_map is None:
                 break
 
-            # resize image
-            frame = cv2.resize(frame, self.dims, interpolation=cv2.INTER_LINEAR)
+            pointlist = self.process_frame(difference_map, frame, plane_normal)
+            self.update_pointcloud(pointlist)
 
-            difference_map = self.subtract_images(frame, old_frame)
-
-            # use texture if available
-            tex = frame if self.texture is None else self.texture
-
-            # search frame for laserline, returns ndarray and preview image.
-            # format: ndarray[height, 8]->[[x_2d,y_2d,x,y,z,r,g,b]..] with y_2d as index
-            pointlist, preview_img = find_laser(difference_map, channel=2, threshold=self.laser_thres, texture=tex, desaturate_texture=self.desaturate_texture)  # texture=texture
-
-            preview_img = cv2.resize(preview_img, self.preview_dims, interpolation=cv2.INTER_NEAREST)
-            cv2.imshow('preview', preview_img)
-
-            # run through each row to triangulate a 3D point
-            for y, values in enumerate(pointlist):
-                x = values[0]
-                if x < 0.5:  # skip lines without matches
-                    continue
-
-                point3d = self.triangulate((x, y), plane_normal)
-
-                # add 3D coordinates to pointlist
-                pointlist[y][2] = point3d[0]
-                pointlist[y][3] = point3d[1] / self.vertical_stretch
-                pointlist[y][4] = point3d[2] * -1
-
-            # remove empty rows
-            pointlist = pointlist[~np.all(pointlist == 0, axis=1)]
-
-            # # append 3D points of this line to the global pointcloud
-            # o3d.utility.Vector3dVector.extend(pointcloud.points, pointlist)
-            self.pointcloud_frame.points = o3d.utility.Vector3dVector(pointlist[:, 2:5])
-            self.pointcloud_frame.colors = o3d.utility.Vector3dVector(pointlist[:, 5:8] / 255)
-            self.pointcloud += self.pointcloud_frame
-
-            # update 3D-view each line
-            self.vis.update_geometry(self.pointcloud)
-            self.vis.poll_events()
-            self.vis.update_renderer()
-
-            # iterate frame_number and laser_angle
-            frame_number += 1
-            self.laser_angle += self.angle_step
-
-            old_frame = frame
+            self.iterate_frame()
+            previous_frame = frame
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
         self.vis.destroy_window()
+        self.export_and_visualize()
 
+    def init_framebuffer(self):
+        return np.zeros((self.dims[1], self.dims[0], 3), np.uint8)
+
+    def calculate_plane_normal(self):
+        laser_angle_rad = math.radians(self.sweep_angle)  # beta
+        return np.array([-1, 0, math.tan(laser_angle_rad)])
+
+    def read_and_resize_frame(self, previous_frame):
+        (grabbed, frame) = self.cap.read()
+        if grabbed is False:  # check if file is finished
+            return None, previous_frame
+        frame = cv2.resize(frame, self.dims, interpolation=cv2.INTER_LINEAR)
+        difference_map = subtract_images(frame, previous_frame, return_RGB=True)
+        return difference_map, frame
+
+    def process_frame(self, difference_map, frame, plane_normal):
+        # use texture if available
+        tex = frame if self.texture is None else self.texture
+
+        # search frame for laserline, returns ndarray and preview image.
+        # format: ndarray[height, 8]->[[x_2d,y_2d,x,y,z,r,g,b]..] with y_2d as index
+        pointlist, preview_img = find_laser(difference_map, channel=2, threshold=self.laser_thres, texture=tex, desaturate_texture=self.desaturate_texture)
+        preview_img = cv2.resize(preview_img, self.preview_dims, interpolation=cv2.INTER_NEAREST)
+        cv2.imshow('preview', preview_img)
+
+        # run through each row to triangulate a 3D point
+        for y, values in enumerate(pointlist):
+            x = values[0]
+            if x < 0.5:  # skip lines without matches
+                continue
+
+            point3d = self.triangulate((x, y), plane_normal)
+
+            # add 3D coordinates to pointlist
+            pointlist[y][2] = point3d[0]
+            pointlist[y][3] = point3d[1] / self.vertical_stretch
+            pointlist[y][4] = point3d[2] * -1
+        
+        # remove empty rows
+        pointlist = pointlist[~np.all(pointlist == 0, axis=1)]
+        return pointlist
+
+    def update_pointcloud(self, pointlist):
+        # # append 3D points of this line to the global pointcloud
+        # o3d.utility.Vector3dVector.extend(pointcloud.points, pointlist)
+        self.pointcloud_frame.points = o3d.utility.Vector3dVector(pointlist[:, 2:5])
+        self.pointcloud_frame.colors = o3d.utility.Vector3dVector(pointlist[:, 5:8] / 255)
+        self.pointcloud += self.pointcloud_frame
+
+        # update 3D-view each line
+        self.vis.update_geometry(self.pointcloud)
+        self.vis.poll_events()
+        self.vis.update_renderer()
+
+    def iterate_frame(self):  # TODO: or just sweep_angle = frame_index * sweep_step ? 
+        self.frame_index += 1
+        self.sweep_angle += self.sweep_step
+
+    def export_and_visualize(self):
         # calculate point normals
         # TODO: they are all facing the camera ?!
-        self.pointcloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=self.KDTree_radius, max_nn=self.KDTree_max_nn))
-        # pointcloud = estimate_normals(pointcloud)
-
+        self.pointcloud = estimate_normals(self.pointcloud, radius=self.KDTree_radius, max_nn=self.KDTree_max_nn)
+        
         # EXPORT PLY, CSV OR PCD MODEL
-        # TODO: exports do not overwrite files -> need to delete if existing
         export_pointcloud(self.pointcloud, self.export_path, type=self.export_type, write_ascii=True)  # ply, csv, pcd
         print("export successful.")
 
         # VISUALIZE
         o3d.visualization.draw_geometries([self.pointcloud], width=self.window_size[0], height=self.window_size[1])
 
-
-    @staticmethod
-    def subtract_images(current_frame, previous_frame):
-        img = cv2.subtract(current_frame, previous_frame).astype(np.float64)
-        average = np.mean(img, axis=2).clip(max=255).astype(np.uint8)
-        return cv2.merge([average, average, average])
-
  
 if __name__ == '__main__':
-    linescanner = LineScanner('config.json')
+    # config = 'images/laser1a_2048_config.json'
+    config = 'images/laser1a_720_config.json'
+    # config = 'images/laser1b_720_config.json'
+    linescanner = LineScanner(config)
     linescanner.scan()
     cv2.destroyAllWindows()

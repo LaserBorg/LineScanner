@@ -1,5 +1,0 @@
-direction: up / down
-angle_start: -15
-angle_delta: 0.5
-interocular: 6.5cm
-fov_horizontal: 46.73°
