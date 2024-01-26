@@ -24,16 +24,16 @@ class LineScanner:
             configs             = json.load(f)
         
         self.video_path         = configs['video_path']
-        self.texture_path       = configs['texture_path']
         self.export_path        = configs['export_path']
         self.export_type        = configs['export_type']
-
         self.cam_pos            = np.array(configs['cam_pos']) 
         self.laser_pos          = np.array(configs['laser_pos'])
         self.hfov               = configs['horizontal_fov']
         self.laser_angle        = configs['laser_angle_start']
         self.angle_step         = configs['angle_step']
         self.laser_thres        = configs['laser_thres']
+        
+        self.desaturate_texture = configs['desaturate_texture']
         
         self.shrink_x           = configs['shrink_x']
         self.shrink_y           = configs['shrink_y']
@@ -54,6 +54,12 @@ class LineScanner:
         self.dims               = (self.width, self.height)
         self.preview_dims       = (self.preview_width, self.preview_height)
         self.zero               = configs['zero']
+        self.KDTree_radius      = configs['KDTree_radius']
+        self.KDTree_max_nn      = configs['KDTree_max_nn']
+
+        # load image texture
+        texpath                 = configs['texture_path'] 
+        self.texture = cv2.resize(cv2.imread(texpath, 1), self.dims, interpolation=cv2.INTER_LINEAR) if texpath != "" else None
 
         # reduce vertical resolution
         self.vertical_stretch   = (source_w / self.width) / (source_h / self.height)
@@ -105,13 +111,6 @@ class LineScanner:
         # init framebuffer for difference-map
         old_frame = np.zeros((self.dims[1], self.dims[0], 3), np.uint8)
 
-        # load image texture
-        if self.texture_path is not None:
-            texture = cv2.imread(self.texture_path, 1)
-            texture = cv2.resize(texture, self.dims, interpolation=cv2.INTER_LINEAR)
-        else:
-            texture = None
-
         # VIDEO PROCESSING LOOP
         frame_number = 0
         while True:
@@ -130,17 +129,14 @@ class LineScanner:
             # resize image
             frame = cv2.resize(frame, self.dims, interpolation=cv2.INTER_LINEAR)
 
-            img = cv2.subtract(frame, old_frame)
-            B, G, R = cv2.split(img.astype(np.float64))
+            difference_map = self.subtract_images(frame, old_frame)
 
-            average = (R + B + G) / 2
-            average = average.clip(max=255).astype(np.uint8)
-
-            img = cv2.merge([average, average, average])
+            # use texture if available
+            tex = frame if self.texture is None else self.texture
 
             # search frame for laserline, returns ndarray and preview image.
             # format: ndarray[height, 8]->[[x_2d,y_2d,x,y,z,r,g,b]..] with y_2d as index
-            pointlist, preview_img = find_laser(img, channel=2, threshold=self.laser_thres, texture=frame, desaturate_texture=True)  # texture=texture
+            pointlist, preview_img = find_laser(difference_map, channel=2, threshold=self.laser_thres, texture=tex, desaturate_texture=self.desaturate_texture)  # texture=texture
 
             preview_img = cv2.resize(preview_img, self.preview_dims, interpolation=cv2.INTER_NEAREST)
             cv2.imshow('preview', preview_img)
@@ -185,7 +181,7 @@ class LineScanner:
 
         # calculate point normals
         # TODO: they are all facing the camera ?!
-        self.pointcloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+        self.pointcloud.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=self.KDTree_radius, max_nn=self.KDTree_max_nn))
         # pointcloud = estimate_normals(pointcloud)
 
         # EXPORT PLY, CSV OR PCD MODEL
@@ -195,6 +191,13 @@ class LineScanner:
 
         # VISUALIZE
         o3d.visualization.draw_geometries([self.pointcloud], width=self.window_size[0], height=self.window_size[1])
+
+
+    @staticmethod
+    def subtract_images(current_frame, previous_frame):
+        img = cv2.subtract(current_frame, previous_frame).astype(np.float64)
+        average = np.mean(img, axis=2).clip(max=255).astype(np.uint8)
+        return cv2.merge([average, average, average])
 
  
 if __name__ == '__main__':
