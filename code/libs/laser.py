@@ -4,7 +4,7 @@ from scipy.signal import find_peaks
 from matplotlib import pyplot as plt
 
 
-def find_laser(img, channel=2, threshold=180, preview_on_black=False, texture=None, desaturate_texture=False):
+def find_laser(img, channel=2, threshold=180, preview_on_black=False, texture=None, desaturate=False):
 
     def find_line_maxima(row, threshold=180, distance=5, multi=False):
         if multi is False:
@@ -69,7 +69,7 @@ def find_laser(img, channel=2, threshold=180, preview_on_black=False, texture=No
     elif texture.shape[2] != 3:
         texture = cv2.cvtColor(texture, cv2.COLOR_GRAY2BGR)
 
-    if desaturate_texture:
+    if desaturate:
         texture = cv2.cvtColor(cv2.cvtColor(texture, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
 
     if preview_on_black:

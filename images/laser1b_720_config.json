@@ -1,7 +1,7 @@
 {
     "video_path": "images/laser1b_720.mp4",
     "texture_path": "",
-    "desaturate_texture": true,
+    "desaturate": true,
 
     "export_path": "export/laser1b_720",
     "export_type" : "pcd",
@@ -23,6 +23,6 @@
     "verbose": false,
     "zero_value" : 1e-6,
 
-    "KDTree_radius" : 0.1,
+    "KDTree_radius" : 5,
     "KDTree_max_nn" : 30
 }

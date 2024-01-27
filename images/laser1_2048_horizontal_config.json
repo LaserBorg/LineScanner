@@ -1,7 +1,7 @@
 {
     "video_path": "images/laser1_2048_horizontal.mp4",
     "texture_path": "images/laser1_RGB_horizontal.jpg",
-    "desaturate_texture": false,
+    "desaturate": false,
 
     "export_path": "export/laser1_2048",
     "export_type" : "pcd",
@@ -23,6 +23,6 @@
     "verbose": false,
     "zero_value" : 1e-6,
 
-    "KDTree_radius" : 0.1,
+    "KDTree_radius" : 5,
     "KDTree_max_nn" : 30
 }
