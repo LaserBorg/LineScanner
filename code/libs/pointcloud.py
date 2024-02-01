@@ -7,14 +7,16 @@ import matplotlib.pyplot as plt
 o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)  # .Debug
 
 
-def load_pointcloud(path, voxel_size=0):
+def load_pointcloud(path, voxel_size=0, verbose=False):
     pcd = o3d.io.read_point_cloud(path)
     size_orig = len(pcd.points)
 
     if voxel_size > 0:
         pcd = pcd.voxel_down_sample(voxel_size)
         size_downsampled = len(pcd.points)
-        print("reduced from", size_orig, "to", size_downsampled, "points")
+        
+        if verbose:
+            print("reduced from", size_orig, "to", size_downsampled, "points")
     return pcd
 
 def transform_pointcloud(pcd, transform=None, translate=None, euler_rotate_deg=None, pivot=(0,0,0)):
@@ -132,12 +134,12 @@ def fpfh_from_pointcloud(pcd, voxel_size=1, max_nn=100):
 
 # GLOBAL REGISTRATION
 
-# def fast_global_registration(source, target, source_fpfh, target_fpfh, voxel_size=1):
-#     distance_threshold = voxel_size * 1.5
+def fast_global_registration(source, target, source_fpfh, target_fpfh, voxel_size=1):
+    distance_threshold = voxel_size * 1.5
 
-#     option = o3d.pipelines.registration.FastGlobalRegistrationOption(maximum_correspondence_distance = distance_threshold)
-#     result = o3d.pipelines.registration.registration_fgr_based_on_feature_matching(source, target, source_fpfh, target_fpfh, option = option)
-#     return result
+    option = o3d.pipelines.registration.FastGlobalRegistrationOption(maximum_correspondence_distance = distance_threshold)
+    result = o3d.pipelines.registration.registration_fgr_based_on_feature_matching(source, target, source_fpfh, target_fpfh, option = option)
+    return result
 
 def ransac_global_registration(source, target, source_fpfh, target_fpfh, voxel_size=1, max_iteration=1000000, confidence=0.9, ransac_n=3, similarity_threshold=0.9):
     distance_threshold = voxel_size * 1.5
