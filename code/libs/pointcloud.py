@@ -146,12 +146,10 @@ def ransac_global_registration(source, target, source_fpfh, target_fpfh, voxel_s
 
     result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
         source, target, source_fpfh, target_fpfh, True, distance_threshold,
-        o3d.pipelines.registration.TransformationEstimationPointToPoint(False),
-        ransac_n, [
+        o3d.pipelines.registration.TransformationEstimationPointToPoint(False), ransac_n, [
             o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(similarity_threshold),
-            o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(
-                distance_threshold)
-        ], o3d.pipelines.registration.RANSACConvergenceCriteria(max_iteration, confidence))
+            o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(distance_threshold)], 
+            o3d.pipelines.registration.RANSACConvergenceCriteria(max_iteration, confidence))
     return result
 
 
