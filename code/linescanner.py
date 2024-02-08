@@ -11,14 +11,9 @@ import math
 import open3d as o3d
 import json
 
-from libs.laser import find_laser
-from libs.pointcloud import estimate_normals, export_pointcloud
-from libs.pointcloud import init_visualizer, static_visualizer, update_visualizer
-from libs.image import subtract_images  # , rotate_bound
-
-
-o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Error)  # .Debug
-
+from libs.pointcloud import set_verbosity, estimate_point_normals, export_pointcloud
+from libs.visualization import init_visualizer, update_visualizer, static_visualizer
+from libs.image import find_laser, subtract_images  # , rotate_bound
 
 class LineScanner:
     def __init__(self, config_path):
@@ -140,7 +135,7 @@ class LineScanner:
         cv2.destroyAllWindows()
 
         # calculate point normals
-        self.pointcloud = estimate_normals(self.pointcloud, radius=self.KDTree_radius, max_nn=self.KDTree_max_nn)
+        self.pointcloud = estimate_point_normals(self.pointcloud, radius=self.KDTree_radius, max_nn=self.KDTree_max_nn)
         
         # export PCD, PLY or CSV model
         export_pointcloud(self.pointcloud, self.export_path, type=self.export_type, write_ascii=True)
@@ -206,6 +201,8 @@ class LineScanner:
 
 
 if __name__ == '__main__':
+    set_verbosity()
+    
     # config = 'images/laser1a_2048_config.json'
     config = 'images/laser1a_720_config.json'
     # config = 'images/laser1b_720_config.json'
