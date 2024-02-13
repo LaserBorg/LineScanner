@@ -5,8 +5,8 @@ normals: http://www.open3d.org/docs/release/python_api/open3d.geometry.PointClou
 """
 
 import open3d as o3d
-from libs.mesh import mesh_from_alpha_shape, estimate_mesh_normals
-from libs.pointcloud import sample_poisson_disk
+from lib.mesh import mesh_from_alpha_shape, estimate_mesh_normals
+from lib.pointcloud import sample_poisson_disk
 
 
 bunny = o3d.data.BunnyMesh()

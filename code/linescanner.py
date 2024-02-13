@@ -11,9 +11,9 @@ import math
 import open3d as o3d
 import json
 
-from libs.pointcloud import set_verbosity, estimate_point_normals, export_pointcloud
-from libs.visualization import init_visualizer, update_visualizer, static_visualizer
-from libs.image import find_laser, subtract_images  # , rotate_bound
+from lib.pointcloud import set_verbosity, estimate_point_normals, export_pointcloud
+from lib.visualization import init_visualizer, update_visualizer, visualize
+from lib.image import find_laser, subtract_images  # , rotate_bound
 
 class LineScanner:
     def __init__(self, config_path):
@@ -142,7 +142,7 @@ class LineScanner:
         print("export successful.")
 
         # display static scene
-        static_visualizer([self.pointcloud], width=self.window_size[0], height=self.window_size[1], left=1000)
+        visualize([self.pointcloud], width=self.window_size[0], height=self.window_size[1], left=1000)
 
     def init_framebuffer(self):
         return np.zeros((self.dims[1], self.dims[0], 3), np.uint8)

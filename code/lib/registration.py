@@ -3,32 +3,7 @@ import numpy as np
 import copy
 
 
-def fpfh_from_pointcloud(pcd, radius=5, max_nn=100):
-    ''' Fast Point Feature Histograms (FPFH) descriptor'''
-    search_param = o3d.geometry.KDTreeSearchParamHybrid(radius=radius, max_nn=max_nn)
-    return o3d.pipelines.registration.compute_fpfh_feature(pcd, search_param)
-
-def fast_global_registration(source, target, source_fpfh, target_fpfh, voxel_size=1):
-    distance_threshold = voxel_size * 1.5
-
-    option = o3d.pipelines.registration.FastGlobalRegistrationOption(maximum_correspondence_distance = distance_threshold)
-    result = o3d.pipelines.registration.registration_fgr_based_on_feature_matching(source, target, source_fpfh, target_fpfh, option = option)
-    return result
-
-def ransac_global_registration(source, target, source_fpfh, target_fpfh, voxel_size=1, max_iteration=1000000, confidence=0.9, ransac_n=3, similarity_threshold=0.9):
-    distance_threshold = voxel_size * 1.5
-
-    result = o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
-        source, target, source_fpfh, target_fpfh, True, distance_threshold,
-        o3d.pipelines.registration.TransformationEstimationPointToPoint(False), ransac_n, [
-            o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(similarity_threshold),
-            o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(distance_threshold)], 
-            o3d.pipelines.registration.RANSACConvergenceCriteria(max_iteration, confidence))
-    return result
-
-# TODO: replace fast_global_registration and ransac_global_registration with global_registration
-
-def global_registration(source_down, target_down, source_fpfh, target_fpfh, distance_threshold, use_fast=False, max_iteration=1000000, confidence=0.9):
+def global_registration(source_down, target_down, source_fpfh, target_fpfh, distance_threshold, use_fast=False, max_iteration=4000000, confidence=0.9):
     if use_fast:
         result = o3d.pipelines.registration.registration_fgr_based_on_feature_matching(
             source_down, target_down, source_fpfh, target_fpfh, 
