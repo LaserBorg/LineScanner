@@ -204,8 +204,9 @@ if __name__ == '__main__':
     set_verbosity()
     
     # config = 'images/laser1a_2048_config.json'
-    config = 'images/laser1a_720_config.json'
+    # config = 'images/laser1a_720_config.json'
     # config = 'images/laser1b_720_config.json'
+    config = 'images/laser2_config.json'
 
     linescanner = LineScanner(config)
     linescanner.scan()
